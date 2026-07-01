@@ -3,9 +3,35 @@
 [![CI](https://github.com/PlatformStackPulse/tf-atom-lambda-alias-aws/actions/workflows/ci.yml/badge.svg)](https://github.com/PlatformStackPulse/tf-atom-lambda-alias-aws/actions/workflows/ci.yml)
 ![Terraform](https://img.shields.io/badge/terraform-%3E%3D1.6.0-blueviolet)
 
-## Purpose
+Terraform atom module that creates an **AWS Lambda alias** — a named, stable pointer to a specific Lambda function version, with optional weighted traffic shifting between versions.
 
-Terraform atom: AWS Lambda Alias - creates a named pointer to a Lambda function version.
+## Features
+
+- Creates an `aws_lambda_alias` pointing at a chosen function version (defaults to `$LATEST`).
+- Alias name defaults to the [tf-label](https://github.com/PlatformStackPulse/tf-label) module `id` (e.g. `eg-test-thing`); override it with `alias_name`.
+- Optional weighted routing (`additional_version_weights`) for canary / blue-green traffic shifting between two versions.
+- Standard `enabled` switch — set `enabled = false` to create no resources (conditional module).
+- Exposes the alias `arn` and `invoke_arn` for wiring into API Gateway, event sources, or permissions.
+
+## Usage
+
+```hcl
+module "lambda_alias" {
+  source = "git::https://github.com/PlatformStackPulse/tf-atom-lambda-alias-aws.git?ref=v1.0.0"
+
+  namespace = "eg"
+  stage     = "prod"
+  name      = "checkout"
+
+  function_name    = module.lambda.function_name # required
+  function_version = "12"
+
+  # Optional: shift 10% of traffic to a new version
+  additional_version_weights = {
+    "13" = 0.1
+  }
+}
+```
 
 ## Module Documentation
 
@@ -70,3 +96,23 @@ Terraform atom: AWS Lambda Alias - creates a named pointer to a Lambda function 
 | <a name="output_enabled"></a> [enabled](#output\_enabled) | Whether the module is enabled |
 | <a name="output_invoke_arn"></a> [invoke\_arn](#output\_invoke\_arn) | Invoke ARN of the Lambda alias |
 <!-- END_TF_DOCS -->
+
+## Tests
+
+Unit tests run against a mock AWS provider (no credentials, no real resources) and
+assert on plan-known values — the tf-label `id`, resource counts, input pass-throughs,
+and the `enabled` flag.
+
+```bash
+# Unit tests (mock provider)
+terraform init -backend=false
+terraform test -test-directory=tests/unit
+
+# via Makefile
+make test-unit
+
+# Integration tests (require AWS credentials)
+terraform test -test-directory=tests/integration
+```
+
+Test files live under [`tests/unit/`](tests/unit) and [`tests/integration/`](tests/integration).
